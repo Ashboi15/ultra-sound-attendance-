@@ -3,28 +3,46 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, CheckCircle, Smartphone } from 'lucide-react';
 import { useSoundData } from '../hooks/useSoundData';
 
-export const StudentView = ({ onBack }) => {
+export const StudentView = ({ user, onBack }) => {
     const {
-        startListening,
-        stopListening,
-        detectionStatus,
-        volumeLevel,
-        resetDetection
+        startListening, stopListening, detectionStatus,
+        volumeLevel, joinSession, sendPresence, connectionStatus
     } = useSoundData();
 
+    // Connect to PeerJS room
     useEffect(() => {
-        // Auto-start listening on mount
+        joinSession(user.roomCode);
+    }, [joinSession, user.roomCode]);
+
+    // Send presence when detected
+    useEffect(() => {
+        if (detectionStatus === 'detected') {
+            const sent = sendPresence(user);
+            if (sent) console.log("Presence sent to teacher");
+            // Trigger Confetti
+            import('canvas-confetti').then(confetti => {
+                confetti.default({
+                    particleCount: 150,
+                    spread: 80,
+                    origin: { y: 0.6 },
+                    colors: ['#00f3ff', '#ffffff', '#00ff9d'] // Cyan, White, Green
+                });
+            });
+        }
+    }, [detectionStatus, sendPresence, user]);
+
+    useEffect(() => {
         startListening();
         return () => stopListening();
     }, [startListening, stopListening]);
 
     return (
-        <div className="flex flex-col items-center justify-center p-6 w-full max-w-md mx-auto relative">
+        <div className="flex flex-col items-center justify-center p-6 w-full max-w-md mx-auto relative cursor-default">
             <button
                 onClick={onBack}
                 className="absolute top-0 left-0 text-sm text-gray-500 hover:text-white transition-colors"
             >
-                &larr; Back
+                &larr; Exit
             </button>
 
             <motion.div
@@ -32,16 +50,41 @@ export const StudentView = ({ onBack }) => {
                 animate={{ opacity: 1, scale: 1 }}
                 className="glass-panel w-full flex flex-col items-center text-center space-y-6"
             >
+                <div className="text-left w-full border-b border-white/10 pb-4 mb-2 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg font-bold text-white">{user.name}</h3>
+                        <p className="text-xs text-cyan-400 font-mono tracking-wider">{user.rollNo}</p>
+                    </div>
+                    <div className={`text-[10px] px-2 py-1 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {connectionStatus === 'connected' ? 'CONNECTED' : 'OFFLINE'}
+                    </div>
+                </div>
+
                 {detectionStatus === 'detected' ? (
-                    <SuccessView />
+                    <SuccessView rollNo={user.rollNo} />
                 ) : (
                     <ListeningView volumeLevel={volumeLevel} status={detectionStatus} />
                 )}
             </motion.div>
 
-            <p className="mt-8 text-xs text-gray-600 max-w-xs text-center leading-relaxed">
-                Please verify microphone permissions. Keep app open to sign in.
-            </p>
+            {detectionStatus !== 'detected' && (
+                <div className="mt-8 w-full max-w-[200px] space-y-2">
+                    <div className="flex justify-between text-[10px] text-gray-500 uppercase">
+                        <span>Signal Strength</span>
+                        <span>{Math.round((volumeLevel / 255) * 100)}%</span>
+                    </div>
+                    <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <motion.div
+                            className="h-full bg-cyan-500"
+                            animate={{ width: `${(volumeLevel / 255) * 100}%` }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-center text-gray-600 pt-2">
+                        Listening at 18kHz [Optimized]
+                    </p>
+                </div>
+            )}
         </div>
     );
 };
@@ -92,7 +135,7 @@ const ListeningView = ({ volumeLevel, status }) => (
     </motion.div>
 );
 
-const SuccessView = () => (
+const SuccessView = ({ rollNo }) => (
     <motion.div
         key="success"
         initial={{ scale: 0.8, opacity: 0 }}
@@ -118,8 +161,10 @@ const SuccessView = () => (
                 <Smartphone size={20} className="text-gray-400" />
             </div>
             <div className="text-left">
-                <div className="text-xs text-gray-500">SESSION ID</div>
-                <div className="text-sm text-cyan-400 font-mono">SEC-8392-X</div>
+                <div className="text-xs text-gray-500">ATTENDANCE ID</div>
+                <div className="text-sm text-cyan-400 font-mono">
+                    {rollNo.toUpperCase()}-VERIFIED
+                </div>
             </div>
         </div>
     </motion.div>
